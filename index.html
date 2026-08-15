@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="子萱实验室">
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <title>子萱实验室 · Zixuan Lab</title>
 <style>
   :root {
@@ -1574,14 +1575,14 @@
     }catch(err){ setGistStatus('下载失败：'+err.message, 'err'); }
   });
 
-  // ===== PWA（已关闭 SW 缓存，改为普通网页访问，确保每次都拿到最新版本）=====
+  // ===== PWA（注册 Service Worker：秒开 + 后台静默更新，不挡功能优化）=====
   window.addEventListener('load',()=>{
     // 兼容老数据：检测并修复 skills 中 goal 缺失/为 0 的脏数据
     data.skills.forEach(s=>{ if(typeof s.goal!=='number'||s.goal<=0) s.goal=1; });
     save();
-    // 注销所有旧 SW，彻底避免缓存命中
+    // 注册 SW（智能缓存：优先缓存秒开，检测到新版本自动后台更新）
     if('serviceWorker' in navigator){
-      navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
     }
   });
 </script>
