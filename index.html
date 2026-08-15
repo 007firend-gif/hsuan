@@ -329,22 +329,21 @@
   @media (max-width:1080px){ .agenda-wrap{grid-template-columns:1fr;} }
   /* 手机端：侧边栏改为顶部横向导航栏，避免窄条挤压导致排版错乱 */
   @media (max-width:720px){
-    body{flex-direction:column;}
-    .sidebar{width:100%; min-width:0; flex-direction:row; align-items:center; gap:6px;
-      padding:8px 10px; border-right:none; border-bottom:1px solid var(--border-soft); overflow-x:auto;}
+    body{flex-direction:column; height:100vh; overflow:hidden;}
+    .sidebar{width:100%; min-width:0; flex-direction:row; flex-wrap:nowrap; align-items:center; gap:6px;
+      padding:calc(env(safe-area-inset-top) + 6px) 10px 6px; border-right:none; border-bottom:1px solid var(--border-soft); overflow-x:auto;}
     .brand{display:flex; align-items:center; gap:8px; flex-shrink:0;}
-    .brand-logo{width:30px; height:30px; border-radius:9px; font-size:16px;}
-    .brand-name{font-size:13px;}
-    .brand-sub{display:none;}
+    .brand-logo{width:28px; height:28px; border-radius:8px; font-size:15px;}
+    .brand-name,.brand-sub{display:none;}
     .nav-group-label{display:none;}
-    .nav-item{flex-direction:row; padding:7px 12px; border-radius:18px; font-size:12.5px; white-space:nowrap;}
+    /* 导航项横向排：装不下时整体横向滚动 */
+    .nav-item{flex-direction:row; justify-content:flex-start; padding:7px 10px; border-radius:18px; font-size:12px; white-space:nowrap; flex:0 0 auto; gap:6px;}
     .nav-item span:not(.nav-ico){display:inline;}
     .sidebar-foot{display:none;}
-    /* 数据备份区：手机上移到主内容底部，这里先隐藏避免顶部拥挤；实际功能在页面内可访问 */
     .data-mgr{display:none;}
-    .main{height:auto; overflow:visible;}
-    .topbar{height:52px; min-height:52px; padding:0 14px;}
-    .content{padding:18px 14px 90px;}
+    .main{height:auto; flex:1; min-height:0; overflow:hidden;}
+    .topbar{height:50px; min-height:50px; padding:0 14px;}
+    .content{padding:16px 14px 96px; height:100%; overflow-y:auto;}
     .sd-phase{grid-template-columns:1fr; gap:8px;}
     .sd-phase-actions{justify-content:flex-start;}
     .sd-cur-delta{min-width:42px; padding:8px 0; font-size:13px;}
