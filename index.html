@@ -1583,7 +1583,9 @@
         const g = await gistReq('POST', '/gists', token, Object.assign({ description:'子萱实验室 数据同步', public:false }, payload));
         gistId = g.id; localStorage.setItem(GIST_ID_KEY, gistId);
       }
-      setGistStatus('已同步到你的 Gist ✓', 'ok');
+      // 同步成功后把 Gist ID 显示出来，方便在另一台设备「下载同步」时填入
+      setGistStatus('已同步 ✓ Gist ID: '+gistId+'（已复制，去另一台设备粘贴）', 'ok');
+      try{ await navigator.clipboard.writeText(gistId); }catch(e){}
       toast('已同步');
     }catch(err){ setGistStatus('同步失败：'+err.message, 'err'); }
   });
@@ -1591,8 +1593,15 @@
   // 从 Gist 拉取数据并覆盖本机
   document.getElementById('btnGistPull').addEventListener('click', async ()=>{
     const token = document.getElementById('gistToken').value.trim();
-    const gistId = localStorage.getItem(GIST_ID_KEY);
-    if(!token || !gistId){ setGistStatus('请先「保存并同步」一次', 'err'); return; }
+    if(!token){ setGistStatus('请先填入 GitHub Token', 'err'); return; }
+    let gistId = localStorage.getItem(GIST_ID_KEY);
+    // 没有 gistId 时让用户粘贴（从另一台设备同步成功时抄过来）
+    if(!gistId){
+      gistId = prompt('粘贴对方设备的 Gist ID（在对方「同步」成功后会显示）：');
+      if(!gistId) return;
+      gistId = gistId.trim();
+      localStorage.setItem(GIST_ID_KEY, gistId);
+    }
     setGistStatus('下载中…');
     try{
       const g = await gistReq('GET', '/gists/'+gistId, token);
@@ -1637,7 +1646,8 @@
         const g = await gistReq('POST', '/gists', token, Object.assign({ description:'子萱实验室 数据同步', public:false }, payload));
         gistId = g.id; localStorage.setItem(GIST_ID_KEY, gistId);
       }
-      setGistStatus('已同步到你的 Gist ✓', 'ok');
+      setGistStatus('已同步 ✓ Gist ID: '+gistId+'（已复制，去另一台设备粘贴）', 'ok');
+      try{ await navigator.clipboard.writeText(gistId); }catch(e){}
       toast('已同步');
     }catch(err){ setGistStatus('同步失败：'+err.message, 'err'); }
   });
