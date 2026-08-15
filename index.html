@@ -44,6 +44,8 @@
   .sidebar-foot{margin-top:auto; padding:11px 10px 2px; border-top:1px solid var(--border-soft); font-size:10.5px; color:var(--text-dim); line-height:1.6;}
   /* 数据备份与同步 */
   .data-mgr{margin-top:12px; padding:12px 10px 14px; border-top:1px solid var(--border-soft);}
+  /* 移动端底部备份条（默认隐藏，手机才显示） */
+  .mobile-backup{display:none;}
   .data-mgr-title{font-size:11px; color:var(--text-soft); font-weight:600; margin-bottom:8px; letter-spacing:.4px;}
   .data-mgr-btns{display:flex; gap:6px;}
   .dm-btn{flex:1; font-size:11.5px; font-weight:600; padding:7px 8px; border-radius:var(--radius-sm); cursor:pointer; border:1px solid var(--border); color:var(--text-soft); background:var(--bg-card); transition:.15s;}
@@ -325,11 +327,37 @@
   .growth-win-empty{font-size:13px; color:var(--text-dim); padding:24px 0; text-align:center;}
 
   @media (max-width:1080px){ .agenda-wrap{grid-template-columns:1fr;} }
+  /* 手机端：侧边栏改为顶部横向导航栏，避免窄条挤压导致排版错乱 */
   @media (max-width:720px){
-    .sidebar{width:64px; min-width:64px; padding:16px 8px;}
-    .brand-name,.brand-sub,.nav-item span:not(.nav-ico),.nav-group-label,.sidebar-foot{display:none;}
-    .nav-item{justify-content:center; padding:11px 0;}
-    .sides.solo{grid-template-columns:1fr;}
+    body{flex-direction:column;}
+    .sidebar{width:100%; min-width:0; flex-direction:row; align-items:center; gap:6px;
+      padding:8px 10px; border-right:none; border-bottom:1px solid var(--border-soft); overflow-x:auto;}
+    .brand{display:flex; align-items:center; gap:8px; flex-shrink:0;}
+    .brand-logo{width:30px; height:30px; border-radius:9px; font-size:16px;}
+    .brand-name{font-size:13px;}
+    .brand-sub{display:none;}
+    .nav-group-label{display:none;}
+    .nav-item{flex-direction:row; padding:7px 12px; border-radius:18px; font-size:12.5px; white-space:nowrap;}
+    .nav-item span:not(.nav-ico){display:inline;}
+    .sidebar-foot{display:none;}
+    /* 数据备份区：手机上移到主内容底部，这里先隐藏避免顶部拥挤；实际功能在页面内可访问 */
+    .data-mgr{display:none;}
+    .main{height:auto; overflow:visible;}
+    .topbar{height:52px; min-height:52px; padding:0 14px;}
+    .content{padding:18px 14px 90px;}
+    .sd-phase{grid-template-columns:1fr; gap:8px;}
+    .sd-phase-actions{justify-content:flex-start;}
+    .sd-cur-delta{min-width:42px; padding:8px 0; font-size:13px;}
+    .sd-btn{min-width:0; flex:1; padding:9px 10px; font-size:12.5px;}
+    .sd-timer-btns{display:flex; flex-wrap:wrap; gap:8px;}
+    /* 移动端底部备份条 */
+    .mobile-backup{display:flex; align-items:center; gap:8px; position:fixed; left:0; right:0; bottom:0;
+      background:var(--bg-card); border-top:1px solid var(--border-soft); padding:9px 12px;
+      box-shadow:0 -3px 14px rgba(0,0,0,.07); z-index:50; padding-bottom:calc(9px + env(safe-area-inset-bottom));}
+    .mb-btn{flex:0 0 auto; font-size:13px; font-weight:700; padding:9px 16px; border-radius:20px; cursor:pointer;
+      border:none; background:var(--accent); color:#fff;}
+    .mb-btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text-soft);}
+    .mb-hint{flex:1; font-size:10.5px; color:var(--text-dim); line-height:1.4;}
   }
 </style>
 </head>
@@ -545,6 +573,14 @@
       </section>
     </div>
   </main>
+
+  <!-- 移动端底部数据备份条（仅手机显示） -->
+  <div class="mobile-backup" id="mobileBackup">
+    <button class="mb-btn" id="mbExport">⬇️ 备份</button>
+    <button class="mb-btn" id="mbImport">⬆️ 导入</button>
+    <button class="mb-btn ghost" id="mbSync">🔄 同步</button>
+    <span class="mb-hint">每周备份一次，防丢数据</span>
+  </div>
 
   <div class="toast" id="toast"></div>
 
@@ -1526,7 +1562,7 @@
 
   // Gist 同步：把 token 存本机
   async function gistReq(method, path, token, body){
-    const opt = { method, headers: { 'Authorization':'token '+token, 'Accept':'application/vnd.github+json' } };
+    const opt = { method, headers: { 'Authorization':'token '+token, 'Accept':'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28' } };
     if(body) opt.body = JSON.stringify(body);
     const res = await fetch('https://api.github.com'+path, opt);
     if(!res.ok) throw new Error('GitHub 返回 '+res.status);
@@ -1541,16 +1577,11 @@
     try{
       localStorage.setItem(GIST_TOKEN_KEY, token);
       let gistId = localStorage.getItem(GIST_ID_KEY);
-      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      const payload = { files: { 'workbench_v4.json': { content: JSON.stringify(data,null,2) } } };
       if(gistId){
-        await gistReq('PATCH', '/gists/'+gistId, token, {
-          files: { 'workbench_v4.json': { content: JSON.stringify(data,null,2) } }
-        });
+        await gistReq('PATCH', '/gists/'+gistId, token, payload);
       }else{
-        const g = await gistReq('POST', '/gists', token, {
-          description:'子萱实验室 数据同步', public:false,
-          files: { 'workbench_v4.json': { content: JSON.stringify(data,null,2) } }
-        });
+        const g = await gistReq('POST', '/gists', token, Object.assign({ description:'子萱实验室 数据同步', public:false }, payload));
         gistId = g.id; localStorage.setItem(GIST_ID_KEY, gistId);
       }
       setGistStatus('已同步到你的 Gist ✓', 'ok');
@@ -1573,6 +1604,43 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
       location.reload();
     }catch(err){ setGistStatus('下载失败：'+err.message, 'err'); }
+  });
+
+  // 移动端底部备份条：复用导出/导入逻辑
+  const mbExport = document.getElementById('mbExport');
+  const mbImport = document.getElementById('mbImport');
+  if(mbExport) mbExport.addEventListener('click', ()=>{
+    const stamp = new Date().toISOString().slice(0,10);
+    downloadJSON(data, `子萱实验室备份_${stamp}.json`);
+    toast('已导出备份');
+  });
+  if(mbImport) mbImport.addEventListener('click', ()=> fileInput.click());
+
+  // 移动端「同步」：prompt 取 token → 存本机 → 上传 Gist
+  const mbSync = document.getElementById('mbSync');
+  if(mbSync) mbSync.addEventListener('click', async ()=>{
+    let token = document.getElementById('gistToken').value.trim();
+    if(!token){
+      token = prompt('填入 GitHub Token（仅存本机，用于跨设备同步）：');
+      if(token===null) return;
+      token = token.trim();
+      if(!token) return;
+      document.getElementById('gistToken').value = token;
+    }
+    setGistStatus('同步中…');
+    try{
+      localStorage.setItem(GIST_TOKEN_KEY, token);
+      let gistId = localStorage.getItem(GIST_ID_KEY);
+      const payload = { files: { 'workbench_v4.json': { content: JSON.stringify(data,null,2) } } };
+      if(gistId){
+        await gistReq('PATCH', '/gists/'+gistId, token, payload);
+      }else{
+        const g = await gistReq('POST', '/gists', token, Object.assign({ description:'子萱实验室 数据同步', public:false }, payload));
+        gistId = g.id; localStorage.setItem(GIST_ID_KEY, gistId);
+      }
+      setGistStatus('已同步到你的 Gist ✓', 'ok');
+      toast('已同步');
+    }catch(err){ setGistStatus('同步失败：'+err.message, 'err'); }
   });
 
   // ===== PWA（注册 Service Worker：秒开 + 后台静默更新，不挡功能优化）=====
