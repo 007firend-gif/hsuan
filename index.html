@@ -578,6 +578,7 @@
     <button class="mb-btn" id="mbExport">⬇️ 备份</button>
     <button class="mb-btn" id="mbImport">⬆️ 导入</button>
     <button class="mb-btn ghost" id="mbSync">🔄 同步</button>
+    <button class="mb-btn ghost" id="mbUpdate">↻ 更新</button>
     <span class="mb-hint">每周备份一次，防丢数据</span>
   </div>
 
@@ -1623,6 +1624,19 @@
     toast('已导出备份');
   });
   if(mbImport) mbImport.addEventListener('click', ()=> fileInput.click());
+
+  // 移动端「更新」：强制注销旧 SW 并刷新，确保拿到最新版
+  const mbUpdate = document.getElementById('mbUpdate');
+  if(mbUpdate) mbUpdate.addEventListener('click', async ()=>{
+    try{
+      if('serviceWorker' in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for(const r of regs){ await r.unregister(); }
+      }
+      localStorage.removeItem('workbench_sw_cache');
+    }catch(e){}
+    location.reload(true);
+  });
 
   // 移动端「同步」：prompt 取 token → 存本机 → 上传 Gist
   const mbSync = document.getElementById('mbSync');
