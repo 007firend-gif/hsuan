@@ -1384,7 +1384,12 @@
     document.getElementById('dayNavDate').textContent = (curDay===todayStr()) ? '今天' : (y+'/'+m+'/'+d);
     document.getElementById('dayNavSub').textContent = y+'年'+m+'月'+d+'日 '+wd;
     const list=document.getElementById('dayList'); list.innerHTML='';
-    const arr=data.day.filter(it=>it.date===curDay).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const arr=data.day.filter(it=>it.date===curDay).slice().sort((a,b)=>{
+      // 按起始时间的小时数排序（支持 '8:00' / '8:00~9:00' / '--:--'），早的在上
+      const sa=(a.time||'').match(/(\d{1,2})/); const sb=(b.time||'').match(/(\d{1,2})/);
+      const ha=sa?Number(sa[1]):99, hb=sb?Number(sb[1]):99;
+      return ha-hb;
+    });
     if(arr.length===0){ list.innerHTML='<div class="todo-empty">'+((curDay===todayStr())?'点击下方模板或输入时间，生成今天的时间表（如 8:00 起床）。':'这天还没有行程，点下方模板或输入时间即可添加。')+'</div>'; return; }
     arr.forEach(it=>{
       const idx=data.day.indexOf(it);
