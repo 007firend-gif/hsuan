@@ -243,8 +243,13 @@
 
   /* today 卡（行程表右侧大块：当日时间表） */
   .note-card.day-card{display:flex; flex-direction:column;}
-  .day-card .day-title{font-size:26px; font-weight:800; letter-spacing:1px; color:var(--text);
-    text-transform:lowercase; font-style:italic; padding:2px 0 12px; border-bottom:1px dashed var(--border-soft); margin-bottom:14px;}
+  .day-nav{display:flex; align-items:center; gap:10px; padding:4px 0 14px; border-bottom:1px dashed var(--border-soft); margin-bottom:14px;}
+  .day-nav-btn{width:34px; height:34px; border-radius:50%; border:1px solid var(--border); background:var(--bg-card); color:var(--text); font-size:16px; cursor:pointer; transition:.15s; flex-shrink:0;}
+  .day-nav-btn:hover{border-color:var(--accent); color:var(--accent);}
+  .day-nav-mid{flex:1; text-align:center; min-width:0;}
+  .day-nav-date{font-size:19px; font-weight:800; color:var(--text); letter-spacing:.5px;}
+  .day-nav-sub{font-size:11.5px; color:var(--text-soft); margin-top:1px;}
+  .day-nav-today{flex-shrink:0; font-size:12px; font-weight:700; padding:8px 14px; border-radius:18px; cursor:pointer; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent);}
   .day-card .day-row .day-time{font-size:13px; min-width:88px; white-space:nowrap;}
   .day-card .day-row .day-text{font-size:13.5px;}
 
@@ -444,7 +449,15 @@
               </div>
             </div>
             <div class="note-card day-card">
-              <h3 class="day-title">today</h3>
+              <div class="day-nav">
+                <button id="dayPrevBtn" class="day-nav-btn">◀</button>
+                <div class="day-nav-mid">
+                  <div class="day-nav-date" id="dayNavDate">今天</div>
+                  <div class="day-nav-sub" id="dayNavSub"></div>
+                </div>
+                <button id="dayNextBtn" class="day-nav-btn">▶</button>
+                <button id="dayTodayBtn" class="day-nav-today">今天</button>
+              </div>
               <div class="day-list" id="dayList"></div>
               <div class="todo-add">
                 <input id="dayInput" placeholder="例如 8:00~9:00 work · 也可单点 09:00 看医生">
@@ -703,6 +716,10 @@
         if(!Array.isArray(d.wins)) d.wins = [];
         if(!d.weekly_review) d.weekly_review = {answers:{}};
         if(typeof d.weekly_review.answers !== 'object' || d.weekly_review.answers === null) d.weekly_review.answers = {};
+        // 行程 day 项补 date 字段（旧数据无 date → 归今天），并按日期分组
+        if(!Array.isArray(d.day)) d.day = [];
+        d.day.forEach(it=>{ if(!it.date) it.date = todayStr(); });
+        if(d.day.length) dirty = true;  // 旧数据补了 date，需要持久化
         if(dirty) localStorage.setItem(STORAGE_KEY, JSON.stringify(d));  // 补丁后立即持久化，手机端彻底干净
         return d;
       }
@@ -714,6 +731,16 @@
   function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1600); }
   function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
   function calKey(d){ return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+  // 日期工具：curDay 为当前查看的日期（'YYYY-M-D'）
+  let curDay = todayStr();
+  function dayAdd(offset){ // 在 curDay 上加 N 天，返回 'YYYY-M-D'
+    const p = curDay.split('-'); const d = new Date(+p[0], (+p[1])-1, +p[2]);
+    d.setDate(d.getDate()+offset); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+  }
+  function dayCNlabel(y,m,d){
+    const wd=['周日','周一','周二','周三','周四','周五','周六'][new Date(y,m-1,d).getDay()];
+    return y+'年'+m+'月'+d+'日 '+wd;
+  }
 
   function render(){
     renderSkillPage();
@@ -1311,8 +1338,14 @@
       const c=document.createElement('div'); c.className='cal-cell';
       if(today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d) c.classList.add('today');
       const ev=data.calendar[k];
-      c.innerHTML=`<div>${d}</div>`+(ev?`<div class="ev">${esc(ev)}</div><span class="dot"></span>`:'');
-      c.addEventListener('click',()=>{ calSel=thisDate; document.getElementById('calInput').placeholder='为 '+(m+1)+'月'+d+'日 加活动…'; });
+      const hasDay = data.day.some(it=>it.date===k);
+      c.innerHTML=`<div>${d}</div>`+(ev?`<div class="ev">${esc(ev)}</div>`:'')+(hasDay?`<span class="dot"></span>`:'');
+      c.addEventListener('click',()=>{
+        // 单击：跳到那天看行程
+        const p=k.split('-');
+        curDay = p[0]+'-'+Number(p[1])+'-'+Number(p[2]);
+        renderDay();
+      });
       c.addEventListener('dblclick',()=>{
         const cur=data.calendar[k]||'';
         const val=prompt('为 '+(m+1)+'月'+d+'日 编辑活动：',cur);
@@ -1343,9 +1376,16 @@
 
   // --- 今日行程（按时间排序） ---
   function renderDay(){
+    // 兜底：旧数据 day 项若无 date 字段，默认归今天
+    if(Array.isArray(data.day)) data.day.forEach(it=>{ if(!it.date) it.date = todayStr(); });
+    // 导航条
+    const [y,m,d] = curDay.split('-').map(Number);
+    const wd=['周日','周一','周二','周三','周四','周五','周六'][new Date(y,m-1,d).getDay()];
+    document.getElementById('dayNavDate').textContent = (curDay===todayStr()) ? '今天' : (y+'/'+m+'/'+d);
+    document.getElementById('dayNavSub').textContent = y+'年'+m+'月'+d+'日 '+wd;
     const list=document.getElementById('dayList'); list.innerHTML='';
-    const arr=data.day.slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    if(arr.length===0){ list.innerHTML='<div class="todo-empty">点击下方模板或输入时间，即可生成当天时间表（如 8:00 起床）。</div>'; return; }
+    const arr=data.day.filter(it=>it.date===curDay).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    if(arr.length===0){ list.innerHTML='<div class="todo-empty">'+((curDay===todayStr())?'点击下方模板或输入时间，生成今天的时间表（如 8:00 起床）。':'这天还没有行程，点下方模板或输入时间即可添加。')+'</div>'; return; }
     arr.forEach(it=>{
       const idx=data.day.indexOf(it);
       const el=document.createElement('div'); el.className='day-row'+(it.done?' done':'');
@@ -1356,6 +1396,11 @@
     });
   }
 
+  // 日期导航事件
+  document.getElementById('dayPrevBtn').addEventListener('click',()=>{ curDay=dayAdd(-1); renderDay(); });
+  document.getElementById('dayNextBtn').addEventListener('click',()=>{ curDay=dayAdd(1); renderDay(); });
+  document.getElementById('dayTodayBtn').addEventListener('click',()=>{ curDay=todayStr(); renderDay(); });
+
   // --- 今日行程：快速添加模板 ---
   function renderDayTemplates(){
     const box=document.getElementById('dayTemplates'); box.innerHTML='';
@@ -1365,7 +1410,7 @@
       el.innerHTML=`<span class="tpl-time">${esc(tp.time)}</span><span>${esc(tp.t)}</span><span class="tpl-x" title="删除模板">✕</span>`;
       el.addEventListener('click',(e)=>{
         if(e.target.classList.contains('tpl-x')){ data.day_templates.splice(i,1); save(); renderDayTemplates(); return; }
-        data.day.push({time:tp.time, t:tp.t, done:false}); save(); renderDay();
+        data.day.push({time:tp.time, t:tp.t, done:false, date:curDay}); save(); renderDay();
       });
       box.appendChild(el);
     });
@@ -1469,7 +1514,7 @@
   document.getElementById('dayAddBtn').addEventListener('click',()=>{
     const raw=document.getElementById('dayInput').value.trim(); if(!raw) return;
     const p=parseTimeRange(raw);
-    data.day.push({time:p.time, t:p.t, done:false});
+    data.day.push({time:p.time, t:p.t, done:false, date:curDay});
     document.getElementById('dayInput').value=''; save(); renderDay();
   });
   document.getElementById('dayInput').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('dayAddBtn').click(); });
